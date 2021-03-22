@@ -1375,11 +1375,11 @@ public func nonDestructivelyStripArchitectures(_ frameworkURL: URL, _ architectu
 	return SignalProducer(value: frameworkURL)
 		.attemptMap(binaryURL)
 		.attemptMap {
-			let frameworkPathComponents = sequence(state: frameworkURL.absoluteURL.pathComponents.makeIterator(), next: {
+			let frameworkPathComponents = sequence(state: frameworkURL.resolvingSymlinksInPath().pathComponents.makeIterator(), next: {
 				$0.next() ?? ""
 			})
 
-			let suffix = zip(frameworkPathComponents, $0.pathComponents).drop(while: { $0 == $1 })
+			let suffix = zip(frameworkPathComponents, $0.resolvingSymlinksInPath().pathComponents).drop(while: { $0 == $1 })
 
 			if suffix.contains(where: { $0.0 != "" }) {
 				return .failure(CarthageError.internalError(description: "In attempt to read NSBundle «\(frameworkURL.absoluteString)»'s binary url, could not relativize «\($0.debugDescription)» against «\(frameworkURL.absoluteString)»."))
@@ -1577,9 +1577,9 @@ private func UUIDsFromDwarfdump(_ url: URL) -> SignalProducer<Set<UUID>, Carthag
 		.ignoreTaskData()
 		.mapError(CarthageError.taskError)
 		.map { String(data: $0, encoding: .utf8) ?? "" }
-		// If there are no dSYMs (the output is empty but has a zero exit 
+		// If there are no dSYMs (the output is empty but has a zero exit
 		// status), complete with no values. This can occur if this is a "fake"
-		// framework, meaning a static framework packaged like a dynamic 
+		// framework, meaning a static framework packaged like a dynamic
 		// framework.
 		.filter { !$0.isEmpty }
 		.flatMap(.merge) { output -> SignalProducer<Set<UUID>, CarthageError> in
@@ -1624,7 +1624,7 @@ public func binaryURL(_ packageURL: URL) -> Result<URL, CarthageError> {
 	let bundle = Bundle(path: packageURL.path)
 
 	if let executableURL = bundle?.executableURL {
-		return .success(executableURL)
+		return .success(executableURL.standardizedFileURL)
 	}
 
 	if bundle?.packageType == .dSYM {
